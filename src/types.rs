@@ -24,34 +24,29 @@ impl SecretStore {
     pub fn get_secret(&self, key: &str) -> Option<&String> {
         self.secrets.get(key)
     }
-}
 
-#[derive(Debug, Clone)]
-pub struct SecretScope {
-    pub project: Option<String>,
-    pub environment: Option<String>,
-}
-
-impl SecretScope {
-    pub fn global() -> Self {
-        Self {
-            project: None,
-            environment: None,
+    pub fn merge(&mut self, other: &SecretStore) {
+        for (key, value) in &other.secrets {
+            self.secrets.insert(key.clone(), value.clone());
         }
     }
+}
 
-    pub fn project(project: String, env: String) -> Self {
-        Self {
-            project: Some(project),
-            environment: Some(env),
-        }
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProjectConfig {
+    pub name: String,
+}
+
+impl ProjectConfig {
+    pub fn new(name: String) -> Self {
+        Self { name }
     }
 
     pub fn filename(&self) -> String {
-        match (&self.project, &self.environment) {
-            (None, None) => "global.yml".to_string(),
-            (Some(proj), Some(env)) => format!("{}.{}.yml", proj, env),
-            _ => panic!("Invalid scope: project and environment must both be Some or None"),
-        }
+        format!("{}.yml", self.name)
+    }
+
+    pub fn display(&self) -> String {
+        self.name.clone()
     }
 }

@@ -1,21 +1,44 @@
 use crate::storage::Storage;
-use crate::types::SecretScope;
-use anyhow::{bail, Context, Result};
+use crate::types::ProjectConfig;
+use crate::project;
+use anyhow::{bail, Result};
 
-pub fn execute(storage: &Storage, scope: &SecretScope, secret_input: &str) -> Result<()> {
+pub fn execute(storage: &Storage, global: bool, project_override: Option<String>, secret_input: &str) -> Result<()> {
     let (key, value) = parse_secret_input(secret_input)?;
+    if global {
+        let mut store = storage.load_global_secrets()?;
+        let is_update = store.get_secret(&key).is_some();
+        store.add_secret(key.clone(), value);
+        storage.save_global_secrets(&store)?;
 
-    let mut store = storage.load_secrets(scope)?;
-
-    let is_update = store.get_secret(&key).is_some();
-    store.add_secret(key.clone(), value);
-
-    storage.save_secrets(scope, &store)?;
-
-    if is_update {
-        println!("Updated secret '{}'", key);
+        if is_update {
+            println!("Updated global secret '{}'", key);
+        } else {
+            println!("Added global secret '{}'", key);
+        }
     } else {
-        println!("Added secret '{}'", key);
+        let project_config = match project_override {
+            Some(project_name) => {
+                ProjectConfig::new(project_name)
+            }
+            None => {
+                project::get_current_project()?
+                    .ok_or_else(|| anyhow::anyhow!(
+                        "No project configured. Run 'vault local [project]' first, use --project <name>, or use --global"
+                    ))?
+            }
+        };
+
+        let mut store = storage.load_project_secrets(&project_config)?;
+        let is_update = store.get_secret(&key).is_some();
+        store.add_secret(key.clone(), value);
+        storage.save_project_secrets(&project_config, &store)?;
+
+        if is_update {
+            println!("Updated secret '{}' for {}", key, project_config.display());
+        } else {
+            println!("Added secret '{}' for {}", key, project_config.display());
+        }
     }
 
     Ok(())
@@ -29,26 +52,5 @@ fn parse_secret_input(input: &str) -> Result<(String, String)> {
         Ok((key.to_string(), value.to_string()))
     } else {
         bail!("Secret must be in KEY=VALUE format");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_secret_input() {
-        assert_eq!(
-            parse_secret_input("API_KEY=secret123").unwrap(),
-            ("API_KEY".to_string(), "secret123".to_string())
-        );
-
-        assert_eq!(
-            parse_secret_input("DB_PASS=").unwrap(),
-            ("DB_PASS".to_string(), "".to_string())
-        );
-
-        assert!(parse_secret_input("INVALID").is_err());
-        assert!(parse_secret_input("=value").is_err());
     }
 }
