@@ -1,28 +1,30 @@
 # Vault
 > Secrets Manager
 
-#### Global secrets
-```
-cargo run -- add --global API_KEY=secret123
+#### Set up multiple projects
+```bash
+mkdir project1 && cd project1
+vault local
+vault add SECRET_ONE=value1
+
+cd ..
+mkdir project2 && cd project2  
+vault local
+vault add SECRET_TWO=value2
 ```
 
-#### Project secrets (note the --project and --env flags)
-```
-cargo run -- add --project myapp --env dev API_KEY=secret456
-```
-
-#### List commands
-```
-cargo run -- list --global
-```
-```
-cargo run -- list --project myapp --env dev
+#### Now manage both from anywhere
+```bash
+vault add --project project1 NEW_SECRET=hello
+vault list --project project1
+vault list --project project2
 ```
 
-#### Load commands
-```
-cargo run -- load --global --export
-```
-```
-cargo run -- load --project myapp --env dev --export
+##### Load different projects
+```bash
+eval "$(vault load --project project1 --export)"
+echo $SECRET_ONE $NEW_SECRET
+
+eval "$(vault load --project project2 --export)"
+echo $SECRET_TWO
 ```
